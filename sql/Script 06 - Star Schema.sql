@@ -1,7 +1,7 @@
 -- ============================================================
 -- Script 06: Star Schema Build (Demonstrative)
 -- Project  : SA Retail Bank Customer Churn Analysis
--- Author   : Dominic Dandareja
+-- Author   : Dominic Dandajena
 -- Description:
 --   Builds a star schema alongside the wide analytical table
 --   created in Script 05. This schema is not used as the
