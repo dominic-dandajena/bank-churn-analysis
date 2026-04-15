@@ -5,7 +5,7 @@
 -- Description:
 --   Transforms the three raw source tables into clean,
 --   typed, and enriched staging tables. Every cleaning
---   decision applied here is grounded in the DQ findings
+--   decision applied here is based on the DQ findings
 --   documented in Script 02.
 --
 --   Three staging tables are produced:
@@ -61,8 +61,8 @@ IF OBJECT_ID('staging.customers', 'U') IS NOT NULL
 -- for the full investigation and reasoning.
 --
 -- Province mapping standardises 26 raw variants to 9 clean
--- province names. UPPER and TRIM are applied defensively
--- to handle casing differences and whitespace irregularities
+-- province names. UPPER and TRIM to handle casing 
+-- differences and whitespace irregularities
 -- from the source system before the comparison is made.
 --
 -- Gender is standardised to Male/Female. Branch code
@@ -147,14 +147,14 @@ base_customers AS (
         d.first_name,
         d.last_name,
 
-        -- DOB retained as DATE where parseable, NULL otherwise.
-        -- Null DOB is handled gracefully by the downstream
+        -- DOB kept as DATE where parseable, NULL otherwise.
+        -- Null DOB is handled by the downstream
         -- age and age_band calculations returning NULL and
         -- Unknown respectively.
         TRY_CONVERT(DATE, d.date_of_birth)              AS date_of_birth,
 
         -- Gender standardised to Male/Female.
-        -- UPPER and TRIM applied defensively before comparison.
+        -- UPPER and TRIM applied before comparison.
         CASE
             WHEN UPPER(LTRIM(RTRIM(d.gender))) IN ('M', 'MALE')   THEN 'Male'
             WHEN UPPER(LTRIM(RTRIM(d.gender))) IN ('F', 'FEMALE') THEN 'Female'
@@ -187,7 +187,7 @@ base_customers AS (
         -- Account status: nulls imputed as Unknown
         ISNULL(d.account_status, 'Unknown')             AS account_status,
 
-        -- Monthly income cast to INT via FLOAT intermediate.
+        -- Monthly income cast to INT via FLOAT intermediate step.
         -- Source system stored values as decimal strings
         -- e.g. "35000.0" — direct INT conversion returns NULL.
         -- FLOAT handles the decimal representation before
@@ -266,11 +266,11 @@ SELECT
     -- income segments. Sort order handled in Power BI.
     CASE
         WHEN monthly_income IS NULL     THEN 'Unknown'
-        WHEN monthly_income < 7000      THEN 'Below R7K'
-        WHEN monthly_income < 15000     THEN 'R7K-R15K'
-        WHEN monthly_income < 30000     THEN 'R15K-R30K'
-        WHEN monthly_income < 60000     THEN 'R30K-R60K'
-        ELSE                                 'Above R60K'
+        WHEN monthly_income < 7000      THEN 'Below R7,000'
+        WHEN monthly_income < 15000     THEN 'R7,000 - R14,999'
+        WHEN monthly_income < 30000     THEN 'R15,000 - R29,999'
+        WHEN monthly_income < 60000     THEN 'R30,000 - R59,999'
+        ELSE                                 'R60,000 & above'
     END                                                  AS income_tier
 
 INTO staging.customers
@@ -284,15 +284,15 @@ IF OBJECT_ID('staging.products', 'U') IS NOT NULL
     DROP TABLE staging.products;
 
 -- Product name mapping CTE standardises 20 raw variants
--- to 5 clean product names. The same UPPER/TRIM defensive
--- pattern is applied consistently across all mapping CTEs
+-- to 5 clean product names. The same UPPER/TRIM commands 
+-- are applied consistently across all mapping CTEs
 -- in this script to handle casing and whitespace
 -- irregularities from the source system.
---
--- Open date validity is assessed against two conditions:
--- dates predating the bank's inception (2015-01-01) are
+
+-- Open-date validity is assessed against two conditions:
+-- dates pre-dating the bank's inception (2015-01-01) are
 -- flagged as suspect legacy migration defaults, and dates
--- predating the customer's own join date are flagged as
+-- pre-dating the customer's own join date are flagged as
 -- referential integrity violations. Both conditions render
 -- the open date unreliable for tenure calculations.
 -- A correlated subquery against raw.customers retrieves
@@ -337,7 +337,7 @@ SELECT
 
     -- Open date validity flag
     -- Flags dates before bank inception (2015-01-01) and
-    -- dates predating the customer's own join date.
+    -- dates pre-dating the customer's own join date.
     -- Both conditions represent referential integrity
     -- violations and are excluded from tenure calculations.
     -- CTE output aliased as pm to allow correct resolution
@@ -385,8 +385,7 @@ SELECT
     -- Outlier balance flag
     -- The R4.2M balance is a statistical outlier that will
     -- skew mean-based calculations. Flagging rather than
-    -- removing preserves the record while giving the
-    -- analyst control over its inclusion in aggregations.
+    -- removing preserves the record for inclusion in aggregations.
     CASE
         WHEN TRY_CONVERT(FLOAT,
             a.avg_monthly_balance) > 1000000 THEN 1
@@ -398,12 +397,12 @@ SELECT
         WHEN TRY_CONVERT(FLOAT,
             a.avg_monthly_balance) < 0       THEN 'Overdrawn'
         WHEN TRY_CONVERT(FLOAT,
-            a.avg_monthly_balance) < 10000   THEN 'R0-R10K'
+            a.avg_monthly_balance) < 10000   THEN 'R0 - R9,999'
         WHEN TRY_CONVERT(FLOAT,
-            a.avg_monthly_balance) < 50000   THEN 'R10K-R50K'
+            a.avg_monthly_balance) < 50000   THEN 'R10,000 - R49,999'
         WHEN TRY_CONVERT(FLOAT,
-            a.avg_monthly_balance) < 200000  THEN 'R50K-R200K'
-        ELSE                                      'Above R200K'
+            a.avg_monthly_balance) < 200000  THEN 'R50,000 - R199,999'
+        ELSE                                      'R200,000 & above'
     END                                                  AS balance_tier,
 
     -- Credit score: null values retained as NULL
